@@ -1,5 +1,6 @@
 <?php namespace Atrauzzi\LaravelNestedSet;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Events\Dispatcher;
 
@@ -9,14 +10,14 @@ class Operation {
 	/**
 	 * Node on which the move operation will be performed
 	 *
-	 * @var Model
+	 * @var Model|NestedSet
 	 */
 	protected $node = NULL;
 
 	/**
 	 * Destination node
 	 *
-	 * @var Model | int
+	 * @var Model|NestedSet
 	 */
 	protected $target = NULL;
 
@@ -60,49 +61,48 @@ class Operation {
 	 *
 	 * @var \Illuminate\Events\Dispatcher
 	 */
-	protected static $dispatcher;
+	//protected static $dispatcher;
 
 	/**
 	 * Create a new Move class instance.
 	 *
-	 * @param   Model $node
-	 * @param   Model|int $target
-	 * @param   string $position
+	 * @param Model|NestedSet $node
+	 * @param Model|NestedSet $target
+	 * @param string $position
 	 */
-	public function __construct($node, $target, $position) {
-		$this->node     = $node;
-		$this->target   = $this->resolveNode($target);
+	public function __construct(Model $node, Model $target, $position) {
+
+		$this->node = $node;
+		$this->target = $this->resolveNode($target);
 		$this->position = $position;
 
-		$this->setEventDispatcher($node->getEventDispatcher());
-	}
+		//$this->setEventDispatcher($node->getEventDispatcher());
 
+	}
 	/**
 	 * Easy static accessor for performing a move operation.
 	 *
-	 * @param   Model      $node
-	 * @param   Model|int  $target
-	 * @param   string          $position
-	 * @return Model
+	 * @param Model|NestedSet $node
+	 * @param Model|int $target
+	 * @param string $position
 	 */
-	public static function to($node, $target, $position) {
+	public static function move($node, $target, $position) {
+		/** @var Operation $instance */
 		$instance = new static($node, $target, $position);
-
-		return $instance->perform();
+		$instance->perform();
 	}
 
 	/**
 	 * Perform the move operation.
-	 *
-	 * @return Model
 	 */
 	public function perform() {
+
 		$this->guardAgainstImpossibleMove();
 
-		if ( $this->fireMoveEvent('moving') === false )
-			return $this->node;
+		//if ($this->fireMoveEvent('moving') === false)
+		//	return $this->node;
 
-		if ( $this->hasChange() ) {
+		if($this->hasChange()) {
 			$self = $this;
 
 			$this->node->getConnection()->transaction(function() use ($self) {
@@ -121,7 +121,6 @@ class Operation {
 
 		$this->fireMoveEvent('moved', false);
 
-		return $this->node;
 	}
 
 	/**
@@ -131,6 +130,7 @@ class Operation {
 	 * @return int
 	 */
 	public function updateStructure() {
+
 		list($a, $b, $c, $d) = $this->boundaries();
 
 		$connection = $this->node->getConnection();
@@ -138,39 +138,48 @@ class Operation {
 
 		$currentId      = $this->node->getKey();
 		$parentId       = $this->parentId();
-		$leftColumn     = $this->node->getLeftColumnName();
-		$rightColumn    = $this->node->getRightColumnName();
-		$parentColumn   = $this->node->getParentColumnName();
+		$leftColumn     = $this->node->getQualifiedColumn('nest_left');
+		$rightColumn    = $this->node->getQualifiedColumn('nest_right');
+		$parentColumn   = $this->node->getQualifiedColumn('parent_id');
 		$wrappedLeft    = $grammar->wrap($leftColumn);
 		$wrappedRight   = $grammar->wrap($rightColumn);
 		$wrappedParent  = $grammar->wrap($parentColumn);
 		$wrappedId      = $grammar->wrap($this->node->getKeyName());
 
-		$lftSql = "CASE
-      WHEN $wrappedLeft BETWEEN $a AND $b THEN $wrappedLeft + $d - $b
-      WHEN $wrappedLeft BETWEEN $c AND $d THEN $wrappedLeft + $a - $c
-      ELSE $wrappedLeft END";
+		$lftSql = "
+			CASE
+			WHEN $wrappedLeft BETWEEN $a AND $b THEN $wrappedLeft + $d - $b
+			WHEN $wrappedLeft BETWEEN $c AND $d THEN $wrappedLeft + $a - $c
+			ELSE $wrappedLeft END
+      	";
 
-		$rgtSql = "CASE
-      WHEN $wrappedRight BETWEEN $a AND $b THEN $wrappedRight + $d - $b
-      WHEN $wrappedRight BETWEEN $c AND $d THEN $wrappedRight + $a - $c
-      ELSE $wrappedRight END";
+		$rgtSql = "
+			CASE
+			WHEN $wrappedRight BETWEEN $a AND $b THEN $wrappedRight + $d - $b
+			WHEN $wrappedRight BETWEEN $c AND $d THEN $wrappedRight + $a - $c
+			ELSE $wrappedRight END
+      	";
 
-		$parentSql = "CASE
-      WHEN $wrappedId = $currentId THEN $parentId
-      ELSE $wrappedParent END";
+		$parentSql = "
+			CASE
+			WHEN $wrappedId = $currentId THEN $parentId
+			ELSE $wrappedParent END
+		";
 
 		return $this->node
 			->newNestedSetQuery()
-			->where(function($query) use ($leftColumn, $rightColumn, $a, $d) {
-				$query->whereBetween($leftColumn, array($a, $d))
-					->orWhereBetween($rightColumn, array($a, $d));
+			->where(function (Builder $query) use ($leftColumn, $rightColumn, $a, $d) {
+				$query
+					->whereBetween($leftColumn, array($a, $d))
+					->orWhereBetween($rightColumn, array($a, $d))
+				;
 			})
-			->update(array(
+			->update([
 				$leftColumn   => $connection->raw($lftSql),
 				$rightColumn  => $connection->raw($rgtSql),
 				$parentColumn => $connection->raw($parentSql)
-			));
+			])
+		;
 	}
 
 	/**
@@ -293,7 +302,10 @@ class Operation {
 	 * @return boolean
 	 */
 	protected function hasChange() {
-		return !( $this->bound1() == $this->node->getRight() || $this->bound1() == $this->node->getLeft() );
+		return !(
+			$this->bound1() == $this->node->nest_left
+			|| $this->bound1() == $this->node->nest_left
+		);
 	}
 
 	/**

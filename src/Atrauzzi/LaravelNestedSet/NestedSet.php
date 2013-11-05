@@ -1,10 +1,11 @@
 <?php namespace Atrauzzi\LaravelNestedSet;
 
+use Atrauzzi\LaravelNestedSet\Operation;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Eloquent\Builder;
 
 
 /**
@@ -279,99 +280,59 @@ trait NestedSet {
 	}
 
 	//
-	// Movement Operations
+	// Operations
 	//
 
 	/**
 	 * Core movement method.
 	 *
-	 * @param Baum\Node|int $target
-	 * @param string        $position
-	 * @return \Baum\Node
+	 * @param Model $target
+	 * @param string $position
 	 */
-	protected function moveTo($target, $position) {
-		return Move::to($this, $target, $position);
+	protected function moveTo(Model $target, $position) {
+		Operation::move($this, $target, $position);
 	}
 
 	/**
 	 * Find the left sibling and move to left of it.
-	 *
-	 * @return \Baum\Node
 	 */
 	public function moveLeft() {
-		return $this->moveToLeftOf($this->getLeftSibling());
+		$this->makePreviousSiblingOf($this->leftSibling());
 	}
 
 	/**
 	 * Find the right sibling and move to the right of it.
-	 *
-	 * @return \Baum\Node
 	 */
 	public function moveRight() {
-		return $this->moveToRightOf($this->getRightSibling());
-	}
-
-	/**
-	 * Move to the node to the left of ...
-	 *
-	 * @return \Baum\Node
-	 */
-	public function moveToLeftOf($node) {
-		return $this->moveTo($node, 'left');
-	}
-
-	/**
-	 * Move to the node to the right of ...
-	 *
-	 * @return \Baum\Node
-	 */
-	public function moveToRightOf($node) {
-		return $this->moveTo($node, 'right');
+		$this->makeNextSiblingOf($this->rightSibling());
 	}
 
 	/**
 	 * Alias for moveToRightOf
-	 *
-	 * @return \Baum\Node
 	 */
-	public function makeNextSiblingOf($node) {
-		return $this->moveToRightOf($node);
-	}
-
-	/**
-	 * Alias for moveToRightOf
-	 *
-	 * @return \Baum\Node
-	 */
-	public function makeSiblingOf($node) {
-		return $this->moveToRightOf($node);
+	public function makeNextSiblingOf(Model $node) {
+		$this->moveTo($node, 'right');
 	}
 
 	/**
 	 * Alias for moveToLeftOf
-	 *
-	 * @return \Baum\Node
 	 */
-	public function makePreviousSiblingOf($node) {
-		return $this->moveToLeftOf($node);
+	public function makePreviousSiblingOf(Model $node) {
+		$this->moveTo($node, 'left');
 	}
 
 	/**
 	 * Make the node a child of ...
-	 *
-	 * @return \Baum\Node
 	 */
-	public function makeChildOf($node) {
-		return $this->moveTo($node, 'child');
+	public function makeChildOf(Model $node) {
+		$this->moveTo($node, 'child');
 	}
 
 	/**
 	 * Make current node a root node.
-	 *
-	 * @return \Baum\Node
 	 */
 	public function makeRoot() {
-		return $this->moveToRightOf($this->getRoot());
+		$this->makeNextSiblingOf($this->root());
 	}
 
 	/**
@@ -380,13 +341,19 @@ trait NestedSet {
 	 * @return void
 	 */
 	public function setDefaultLeftAndRight() {
-		$withHighestRight = $this->newQuery()->orderBy($this->getRightColumnName(), 'desc')->take(1)->first();
 
-		$maxRgt = 0;
-		if ( !is_null($withHighestRight) ) $maxRgt = $withHighestRight->getRight();
+		$withHighestRight = $this
+			->newQuery()
+			->orderBy($this->getQualifiedColumn('nest_left'), 'desc')
+			->take(1)
+			->first()
+		;
 
-		$this->setAttribute($this->getLeftColumnName()  , $maxRgt + 1);
-		$this->setAttribute($this->getRightColumnName() , $maxRgt + 2);
+		$maxRgt = $withHighestRight ? $withHighestRight->nest_right : 0;
+
+		$this->nest_left = $maxRgt + 1;
+		$this->nest_right = $maxRgt + 2;
+
 	}
 
 
@@ -443,7 +410,7 @@ trait NestedSet {
 	 * Begins a new query intended for nested set purposes.
 	 *
 	 * @param bool $excludeDeleted
-	 * @return mixed
+	 * @return Builder
 	 */
 	public function newNestedSetQuery($excludeDeleted = true) {
 
