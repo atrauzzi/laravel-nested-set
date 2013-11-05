@@ -1,6 +1,6 @@
 {
 	"name": "atrauzzi/laravel-nested-set",
-	"description": "A clean nested set implementation for Laravel 4.",
+	"description": "Add nested set functionality to any Eloquent model.",
 	"authors": [
 		{
 			"name": "Alexander Trauzzi",
