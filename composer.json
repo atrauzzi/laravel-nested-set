@@ -1,6 +1,7 @@
 {
 	"name": "atrauzzi/laravel-nested-set",
 	"description": "Add nested set functionality to any Eloquent model.",
+	"keywords": ["eloquent", "laravel", "orm", "nested", "set", "tree", "forest"],
 	"authors": [
 		{
 			"name": "Alexander Trauzzi",
