@@ -1,0 +1,16 @@
+{
+	"name": "atrauzzi/laravel-nested-set",
+	"description": "A clean nested set implementation for Laravel 4.",
+	"authors": [
+		{
+			"name": "Alexander Trauzzi",
+			"email": "atrauzzi@gmail.com"
+		}
+	],
+	"require": {
+		"illuminate/database": "4.0.x"
+	},
+	"psr-0": {
+		"Atrauzzi\\LaravelNestedSet": "src/"
+	}
+}
