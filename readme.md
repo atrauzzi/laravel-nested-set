@@ -7,7 +7,7 @@ Add nested set functionality to any Eloquent model.
 
 ### Meta
 
-I'm interested in hearing feedback and suggestions about this package.  Please feel free to [submit a ticket](http://goo.gl/KU6B8) at any time.
+I'm interested in hearing feedback and suggestions about this package.  Please feel free to [submit a ticket](https://github.com/atrauzzi/laravel-nested-set/issues) at any time.
 
 laravel-nested-set is made by [Alexander Trauzzi](http://goo.gl/QabWv) with help from all the people in `contributors.md`!
 
